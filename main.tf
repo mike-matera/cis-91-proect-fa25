@@ -17,6 +17,18 @@ resource "google_compute_network" "vpc_network" {
   name = "terraform-network"
 }
 
+resource "google_service_account" "vm_sa" {
+  account_id   = "vm-sa-wiki"
+  display_name = "VM Service Account"
+}
+
+resource "google_compute_disk" "persistent_disk" {
+  name    = "vm-persistent-disk"
+  type    = "pd-balanced"
+  size    = 10 # GB
+  zone    = var.zone
+}
+
 resource "google_compute_instance" "vm_instance" {
   name         = "terraform-instance"
   machine_type = "e2-small"
@@ -25,9 +37,13 @@ resource "google_compute_instance" "vm_instance" {
 
   boot_disk {
     initialize_params {
-      # image = "debian-cloud/debian-12"
-      image = "cos-cloud/cos-stable"
+      image = "debian-cloud/debian-12"
     }
+  }
+
+  attached_disk {
+    source      = google_compute_disk.persistent_disk.id
+    device_name = "persistent-disk-1" # You can choose a different device name
   }
 
   network_interface {
@@ -35,6 +51,22 @@ resource "google_compute_instance" "vm_instance" {
     access_config {
     }
   }
+
+  service_account {
+    email  = google_service_account.vm_sa.email
+    scopes = ["cloud-platform"]
+  }
+}
+
+resource "google_compute_firewall" "allow_http" {
+  name    = "terraform-network-allow-http"
+  network = google_compute_network.vpc_network.name
+  allow {
+    protocol = "tcp"
+    ports    = ["80", "443"]
+  }
+  source_ranges = ["0.0.0.0/0"]
+  target_tags   = ["web"]
 }
 
 output "ip" {
@@ -43,4 +75,14 @@ output "ip" {
 
 output "external_ip" {
   value = google_compute_instance.vm_instance.network_interface.0.access_config.0.nat_ip
+}
+
+resource "google_compute_firewall" "allow_ssh" {
+  name    = "terraform-network-allow-ssh"
+  network = google_compute_network.vpc_network.name
+  allow {
+    protocol = "tcp"
+    ports    = ["22"]
+  }
+  source_ranges = ["0.0.0.0/0"]
 }

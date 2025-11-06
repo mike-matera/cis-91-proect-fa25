@@ -1,6 +1,22 @@
 # Playbook is: A list plays 
 
 - hosts: all
+  name: Prepare storage for MySQL
+  become: yes
+  tasks:
+    - name: Create ext4 filesystem on the persistent disk
+      community.general.filesystem:
+        fstype: ext4
+        dev: /dev/disk/by-id/google-persistent-disk-1
+
+    - name: Mount the persistent disk at /var/lib/mysql
+      ansible.posix.mount:
+        path: /var/lib/mysql
+        src: /dev/disk/by-id/google-persistent-disk-1
+        fstype: ext4
+        state: mounted
+
+- hosts: all
   name: Install Apache and PHP
   become: yes
   tasks:
