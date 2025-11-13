@@ -29,10 +29,10 @@ resource "google_compute_disk" "persistent_disk" {
   zone    = var.zone
 }
 
-resource "google_compute_instance" "vm_instance" {
-  name         = "terraform-instance"
+resource "google_compute_instance" "db_instance" {
+  name         = "db-instance"
   machine_type = "e2-small"
-  tags         = ["web", "dev"]
+  tags         = ["db"]
   allow_stopping_for_update = true
 
   boot_disk {
@@ -58,6 +58,25 @@ resource "google_compute_instance" "vm_instance" {
   }
 }
 
+resource "google_compute_instance" "web_instance" {
+  name         = "web-instance"
+  machine_type = "e2-small"
+  tags         = ["web"]
+  allow_stopping_for_update = true
+
+  boot_disk {
+    initialize_params {
+      image = "debian-cloud/debian-12"
+    }
+  }
+
+  network_interface {
+    network = google_compute_network.vpc_network.name
+    access_config {
+    }
+  }
+}
+
 resource "google_compute_firewall" "allow_http" {
   name    = "terraform-network-allow-http"
   network = google_compute_network.vpc_network.name
@@ -69,12 +88,15 @@ resource "google_compute_firewall" "allow_http" {
   target_tags   = ["web"]
 }
 
-output "ip" {
-  value = google_compute_instance.vm_instance.network_interface.0.network_ip
-}
-
-output "external_ip" {
-  value = google_compute_instance.vm_instance.network_interface.0.access_config.0.nat_ip
+resource "google_compute_firewall" "allow_db" {
+  name    = "terraform-network-allow-db"
+  network = google_compute_network.vpc_network.name
+  allow {
+    protocol = "tcp"
+    ports    = ["3306"]
+  }
+  source_tags = ["web"]
+  target_tags   = ["db"]
 }
 
 resource "google_compute_firewall" "allow_ssh" {
@@ -85,4 +107,16 @@ resource "google_compute_firewall" "allow_ssh" {
     ports    = ["22"]
   }
   source_ranges = ["0.0.0.0/0"]
+}
+
+output "db-ip" {
+  value = google_compute_instance.db_instance.network_interface.0.network_ip
+}
+
+output "web-ip" {
+  value = google_compute_instance.web_instance.network_interface.0.network_ip
+}
+
+output "external_ip" {
+  value = google_compute_instance.web_instance.network_interface.0.access_config.0.nat_ip
 }
